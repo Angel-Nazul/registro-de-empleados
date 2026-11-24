@@ -1,0 +1,17 @@
+# Dependencias
+node_modules/
+
+# Archivos de compilación
+dist/
+
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Base de datos local
+*.db
+*.db-journal
+
+# Archivos temporales
+*.log

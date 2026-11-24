@@ -1,0 +1,98 @@
+// Schema completo de la fase 1. Los modelos de horarios y nómina se crean
+// desde ahora para que las migraciones futuras solo agreguen lógica, no estructura.
+//
+// NOTA: el conector SQLite de Prisma 5 no admite `enum`. Los campos que antes
+// serían enum se guardan como String y se validan con uniones de TypeScript
+// en src/types/enums.ts (ADMIN | EMPLEADO, etc.).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Modelos
+// ---------------------------------------------------------------------------
+
+model User {
+  id       Int      @id @default(autoincrement())
+  email    String   @unique
+  password String // bcrypt hash
+  role     String   @default("EMPLEADO") // ADMIN | EMPLEADO
+
+  // FK real hacia Employee: vincula la cuenta de acceso con el expediente.
+  employeeId Int?      @unique
+  employee   Employee? @relation("UserEmployee", fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("users")
+}
+
+model Employee {
+  id           Int      @id @default(autoincrement())
+  fullName     String
+  email        String   @unique
+  phone        String?
+  position     String
+  department   String
+  hireDate     DateTime
+  hourlyRate   Float    @default(80.0) // MXN por hora
+  contractType String   @default("TIEMPO_COMPLETO") // TIEMPO_COMPLETO | MEDIO_TIEMPO | TEMPORAL
+  status       String   @default("ACTIVO") // ACTIVO | INACTIVO
+
+  // Referencia lógica al usuario. Se completa en el seed y se usará en los
+  // módulos siguientes. Se mantiene como campo (no como relación Prisma)
+  // para no duplicar la relación User <-> Employee.
+  userId    Int?     @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Lado inverso de User.employeeId.
+  account User? @relation("UserEmployee")
+
+  timeRecords    TimeRecord[]
+  weeklyPayrolls WeeklyPayroll[]
+
+  @@map("employees")
+}
+
+model TimeRecord {
+  id            Int       @id @default(autoincrement())
+  employeeId    Int
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  date          DateTime
+  checkIn       DateTime?
+  lunchOut      DateTime?
+  lunchIn       DateTime?
+  checkOut      DateTime?
+  regularHours  Float     @default(0)
+  overtimeHours Float     @default(0)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([employeeId, date])
+  @@map("time_records")
+}
+
+model WeeklyPayroll {
+  id                  Int      @id @default(autoincrement())
+  employeeId          Int
+  employee            Employee @relation(fields: [employeeId], references: [id])
+  weekStart           DateTime
+  baseSalary          Float
+  overtimePay         Float
+  tardinessDeduction  Float    @default(0)
+  complianceDeduction Float    @default(0)
+  otherDeductions     Float    @default(0)
+  netSalary           Float
+  updatedAt           DateTime @updatedAt
+
+  @@unique([employeeId, weekStart])
+  @@map("weekly_payrolls")
+}
